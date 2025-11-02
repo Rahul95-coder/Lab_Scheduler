@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lab Scheduler — Rahul Vishwakarma</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Small helpers for modal backdrop */
+    .backdrop-blur-xs { backdrop-filter: blur(4px); }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-slate-900 to-slate-700 text-slate-100 min-h-screen">
+  <div class="max-w-6xl mx-auto px-5 py-10">
+    <header class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold">Lab Scheduler</h1>
+        <p class="text-slate-300 mt-1">Quickly create and manage lab appointment slots. Data is saved locally in your browser.</p>
+      </div>
+      <div class="flex gap-3 items-center">
+        <button id="export-csv" class="px-3 py-2 rounded bg-gradient-to-r from-teal-400 to-purple-500 text-slate-900 font-semibold shadow">Export CSV</button>
+        <button id="clear-all" class="px-3 py-2 rounded bg-white/6 hover:bg-white/8">Clear all</button>
+        <button id="btn-add" class="px-3 py-2 rounded bg-gradient-to-r from-purple-500 to-teal-400 text-slate-900 font-semibold">New Appointment</button>
+      </div>
+    </header>
+
+    <!-- Controls -->
+    <section class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white/5 p-4 rounded-lg">
+        <label class="text-sm text-slate-300">Search by name</label>
+        <input id="q" type="search" placeholder="Patient or client name..." class="mt-2 w-full rounded px-3 py-2 bg-transparent border border-white/10 focus:outline-none" />
+      </div>
+
+      <div class="bg-white/5 p-4 rounded-lg">
+        <label class="text-sm text-slate-300">Filter by date</label>
+        <input id="filter-date" type="date" class="mt-2 w-full rounded px-3 py-2 bg-transparent border border-white/10" />
+      </div>
+
+      <div class="bg-white/5 p-4 rounded-lg">
+        <label class="text-sm text-slate-300">Settings (working hours)</label>
+        <div class="mt-2 flex gap-2">
+          <input id="work-start" type="time" value="09:00" class="rounded px-2 py-1 bg-transparent border border-white/10 w-1/2" />
+          <input id="work-end" type="time" value="17:00" class="rounded px-2 py-1 bg-transparent border border-white/10 w-1/2" />
+        </div>
+        <div class="mt-2 text-xs text-slate-400">Slot length (minutes)</div>
+        <input id="slot-length" type="number" min="5" step="5" value="30" class="mt-1 rounded px-2 py-1 bg-transparent border border-white/10 w-1/3" />
+      </div>
+    </section>
+
+    <!-- Main grid -->
+    <section class="grid md:grid-cols-3 gap-6">
+      <!-- Slots panel -->
+      <aside class="bg-white/5 p-4 rounded-lg">
+        <h3 class="font-semibold mb-3">Available slots (select date)</h3>
+        <label class="text-sm text-slate-300">Choose date</label>
+        <input id="slot-date" type="date" class="mt-2 w-full rounded px-3 py-2 bg-transparent border border-white/10" />
+
+        <div id="slots-area" class="mt-4 space-y-2">
+          <p class="text-sm text-slate-400">Select a date to see available slots.</p>
+        </div>
+
+        <div class="mt-4 text-xs text-slate-400">
+          Click a slot to create a new appointment for that time.
+        </div>
+      </aside>
+
+      <!-- Appointments list -->
+      <div class="md:col-span-2 bg-white/5 p-4 rounded-lg">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold">Appointments</h3>
+          <div class="text-sm text-slate-300" id="count">0 appointments</div>
+        </div>
+
+        <div id="appointments-list" class="space-y-3 max-h-[60vh] overflow-auto pr-2">
+          <p class="text-sm text-slate-400">No appointments yet — create one or import.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Modal: Add / Edit -->
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-xs"></div>
+    <div class="relative max-w-lg w-full bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg p-6 shadow-xl">
+      <h2 id="modal-title" class="text-xl font-semibold mb-3">New Appointment</h2>
+
+      <form id="appointment-form" class="space-y-3">
+        <div>
+          <label class="text-sm text-slate-300">Name</label>
+          <input id="name" required class="mt-1 w-full rounded px-3 py-2 bg-transparent border border-white/10" />
+        </div>
+
+        <div>
+          <label class="text-sm text-slate-300">Phone</label>
+          <input id="phone" type="tel" class="mt-1 w-full rounded px-3 py-2 bg-transparent border border-white/10" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm text-slate-300">Date</label>
+            <input id="date" type="date" required class="mt-1 w-full rounded px-3 py-2 bg-transparent border border-white/10" />
+          </div>
+          <div>
+            <label class="text-sm text-slate-300">Time slot</label>
+            <select id="time" required class="mt-1 w-full rounded px-3 py-2 bg-transparent border border-white/10"></select>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-sm text-slate-300">Service / Notes</label>
+          <input id="notes" class="mt-1 w-full rounded px-3 py-2 bg-transparent border border-white/10" placeholder="e.g., Blood test, Urine, PCR" />
+        </div>
+
+        <div class="flex items-center gap-3 justify-end">
+          <button type="button" id="cancel-modal" class="px-3 py-2 rounded bg-white/6">Cancel</button>
+          <button id="save-appointment" class="px-4 py-2 rounded bg-gradient-to-r from-teal-400 to-purple-500 text-slate-900 font-semibold">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Template for appointment card (hidden) -->
+  <template id="appt-template">
+    <div class="p-3 rounded-lg bg-white/6 flex items-start justify-between gap-3">
+      <div class="flex gap-3 items-start">
+        <div class="w-12 text-center">
+          <div class="text-sm font-semibold" data-date-short></div>
+          <div class="text-xs text-slate-400" data-time></div>
+        </div>
+        <div>
+          <div class="font-semibold" data-name></div>
+          <div class="text-xs text-slate-300" data-notes></div>
+          <div class="text-xs text-slate-400 mt-1" data-phone></div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="edit-btn px-2 py-1 rounded bg-white/8 text-xs">Edit</button>
+        <button class="cancel-btn px-2 py-1 rounded bg-red-500 text-xs text-white">Cancel</button>
+      </div>
+    </div>
+  </template>
+
+<script>
+/* Lab Scheduler JS
+   - Save appointments in localStorage under key 'lab_scheduler_appointments'
+   - Appointment model: { id, name, phone, date (YYYY-MM-DD), time (HH:MM), notes, createdAt }
+*/
+
+(function () {
+  // Elements
+  const modal = document.getElementById('modal');
+  const btnAdd = document.getElementById('btn-add');
+  const cancelModal = document.getElementById('cancel-modal');
+  const saveBtn = document.getElementById('save-appointment');
+  const apptForm = document.getElementById('appointment-form');
+  const slotsArea = document.getElementById('slots-area');
+  const slotDateInput = document.getElementById('slot-date');
+  const workStartInput = document.getElementById('work-start');
+  const workEndInput = document.getElementById('work-end');
+  const slotLengthInput = document.getElementById('slot-length');
+  const timeSelect = document.getElementById('time');
+  const dateInput = document.getElementById('date');
+  const nameInput = document.getElementById('name');
+  const phoneInput = document.getElementById('phone');
+  const notesInput = document.getElementById('notes');
+  const apptsList = document.getElementById('appointments-list');
+  const countEl = document.getElementById('count');
+  const qInput = document.getElementById('q');
+  const filterDate = document.getElementById('filter-date');
+  const exportBtn = document.getElementById('export-csv');
+  const clearAllBtn = document.getElementById('clear-all');
+
+  const STORAGE_KEY = 'lab_scheduler_appointments_v1';
+
+  let appointments = [];
+  let editId = null;
+
+  // Helpers
+  function uid() {
+    return 'id_' + Math.random().toString(36).slice(2, 9);
+  }
+
+  function load() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    appointments = raw ? JSON.parse(raw) : [];
+  }
+
+  function saveAll() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
+    renderAppointments();
+  }
+
+  function formatDateShort(d) {
+    // d: YYYY-MM-DD
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+  }
+
+  function formatTime(t) {
+    // t = "HH:MM"
+    const [h, m] = t.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function generateSlotsForDay(dateStr) {
+    // generate slots between workStart and workEnd with slotLength minutes
+    const start = workStartInput.value || '09:00';
+    const end = workEndInput.value || '17:00';
+    const slotMin = parseInt(slotLengthInput.value || '30', 10);
+
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+
+    const startMinutes = sh * 60 + sm;
+    const endMinutes = eh * 60 + em;
+
+    const slots = [];
+    for (let t = startMinutes; t + slotMin <= endMinutes; t += slotMin) {
+      const hh = Math.floor(t / 60).toString().padStart(2, '0');
+      const mm = (t % 60).toString().padStart(2, '0');
+      slots.push(`${hh}:${mm}`);
+    }
+    // Mark booked slots by checking appointments
+    const booked = appointments.filter(a => a.date === dateStr).map(a => a.time);
+    return slots.map(s => ({ time: s, booked: booked.includes(s) }));
+  }
+
+  function clearSlotsArea() {
+    slotsArea.innerHTML = '';
+  }
+
+  function renderSlotsForSelectedDate() {
+    clearSlotsArea();
+    const dateVal = slotDateInput.value;
+    if (!dateVal) {
+      slotsArea.innerHTML = '<p class="text-sm text-slate-400">Select a date to view available slots.</p>';
+      return;
+    }
+    const slots = generateSlotsForDay(dateVal);
+    const list = document.createElement('div');
+    list.className = 'grid gap-2';
+    slots.forEach(slot => {
+      const btn = document.createElement('button');
+      btn.className = 'w-full text-left rounded px-3 py-2 bg-white/6 flex justify-between items-center';
+      btn.innerHTML = `<span>${formatTime(slot.time)}</span><span class="text-xs ${slot.booked ? 'text-red-300' : 'text-teal-300'}">${slot.booked ? 'Booked' : 'Available'}</span>`;
+      if (!slot.booked) {
+        btn.addEventListener('click', () => {
+          // open modal with date & time prefilled
+          openModalForNew(dateVal, slot.time);
+        });
+      } else {
+        // show booked details on click
+        btn.addEventListener('click', () => {
+          const ap = appointments.find(a => a.date === dateVal && a.time === slot.time);
+          if (ap) {
+            openModalForEdit(ap.id);
+          }
+        });
+      }
+      list.appendChild(btn);
+    });
+    slotsArea.appendChild(list);
+  }
+
+  function renderAppointments() {
+    apptsList.innerHTML = '';
+    const q = (qInput.value || '').toLowerCase();
+    const fd = filterDate.value || '';
+
+    let filtered = appointments.slice();
+
+    if (q) {
+      filtered = filtered.filter(a => (a.name || '').toLowerCase().includes(q) || (a.notes || '').toLowerCase().includes(q));
+    }
+    if (fd) filtered = filtered.filter(a => a.date === fd);
+
+    if (filtered.length === 0) {
+      apptsList.innerHTML = '<p class="text-sm text-slate-400">No appointments match the filter.</p>';
+    } else {
+      filtered.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+      filtered.forEach(a => {
+        const tpl = document.getElementById('appt-template').content.cloneNode(true);
+        tpl.querySelector('[data-name]').textContent = a.name;
+        tpl.querySelector('[data-notes]').textContent = a.notes || '';
+        tpl.querySelector('[data-phone]').textContent = a.phone || '';
+        tpl.querySelector('[data-date-short]').textContent = formatDateShort(a.date);
+        tpl.querySelector('[data-time]').textContent = formatTime(a.time);
+        const card = tpl.querySelector('div');
+        // Edit / Cancel buttons
+        card.querySelector('.edit-btn').addEventListener('click', () => openModalForEdit(a.id));
+        card.querySelector('.cancel-btn').addEventListener('click', () => {
+          if (confirm('Cancel this appointment?')) {
+            appointments = appointments.filter(x => x.id !== a.id);
+            saveAll();
+            renderSlotsForSelectedDate();
+          }
+        });
+        apptsList.appendChild(card);
+      });
+    }
+    countEl.textContent = `${filtered.length} appointment${filtered.length !== 1 ? 's' : ''}`;
+  }
+
+  // Modal functions
+  function openModalForNew(dateStr = '', timeStr = '') {
+    editId = null;
+    document.getElementById('modal-title').textContent = 'New Appointment';
+    apptForm.reset();
+    nameInput.value = '';
+    phoneInput.value = '';
+    notesInput.value = '';
+    dateInput.value = dateStr || '';
+    populateTimeOptions(dateInput.value || '', timeStr);
+    timeSelect.value = timeStr || (timeSelect.options[0] && timeSelect.options[0].value) || '';
+    showModal();
+  }
+
+  function openModalForEdit(id) {
+    const ap = appointments.find(a => a.id === id);
+    if (!ap) return;
+    editId = id;
+    document.getElementById('modal-title').textContent = 'Edit Appointment';
+    nameInput.value = ap.name;
+    phoneInput.value = ap.phone || '';
+    notesInput.value = ap.notes || '';
+    dateInput.value = ap.date;
+    populateTimeOptions(ap.date, ap.time);
+    timeSelect.value = ap.time;
+    showModal();
+  }
+
+  function showModal() {
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    // focus first field
+    setTimeout(() => nameInput.focus(), 120);
+  }
+
+  function hideModal() {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
+
+  // Populate time <select> based on settings and date (and avoid double booking unless editing same id)
+  function populateTimeOptions(dateVal, preferredTime) {
+    timeSelect.innerHTML = '';
+    const options = generateSlotsForDay(dateVal || (new Date()).toISOString().slice(0,10));
+    options.forEach(opt => {
+      const o = document.createElement('option');
+      o.value = opt.time;
+      o.textContent = formatTime(opt.time) + (opt.booked ? ' — Booked' : '');
+      // If slot is booked and we're editing same appointment, allow it
+      if (opt.booked) {
+        // find which appointment booked it
+        const ap = appointments.find(a => a.date === dateVal && a.time === opt.time);
+        if (ap && ap.id === editId) {
+          o.disabled = false;
+        } else {
+          o.disabled = true;
+        }
+      }
+      timeSelect.appendChild(o);
+    });
+    if (preferredTime) timeSelect.value = preferredTime;
+  }
+
+  // Save action (create or edit)
+  apptForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveAppointment();
+  });
+  saveBtn.addEventListener('click', saveAppointment);
+  cancelModal.addEventListener('click', hideModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) hideModal();
+  });
+
+  function saveAppointment() {
+    const name = nameInput.value.trim();
+    const phone = phoneInput.value.trim();
+    const date = dateInput.value;
+    const time = timeSelect.value;
+    const notes = notesInput.value.trim();
+
+    if (!name || !date || !time) {
+      alert('Please fill Name, Date and Time.');
+      return;
+    }
+
+    // Prevent double-booking unless editing that same appointment
+    const conflict = appointments.find(a => a.date === date && a.time === time && a.id !== editId);
+    if (conflict) {
+      alert('Selected slot is already booked. Please choose another slot.');
+      return;
+    }
+
+    if (editId) {
+      // update
+      const idx = appointments.findIndex(a => a.id === editId);
+      if (idx !== -1) {
+        appointments[idx] = { ...appointments[idx], name, phone, date, time, notes, updatedAt: new Date().toISOString() };
+      }
+      editId = null;
+    } else {
+      const newAppt = { id: uid(), name, phone, date, time, notes, createdAt: new Date().toISOString() };
+      appointments.push(newAppt);
+    }
+
+    saveAll();
+    hideModal();
+    renderSlotsForSelectedDate();
+  }
+
+  // Export CSV
+  exportBtn.addEventListener('click', () => {
+    if (!appointments.length) {
+      alert('No appointments to export.');
+      return;
+    }
+    const headers = ['id','name','phone','date','time','notes','createdAt','updatedAt'];
+    const rows = appointments.map(a => headers.map(h => JSON.stringify(a[h] || '')).join(',')).join('\n');
+    const csv = headers.join(',') + '\n' + rows;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `appointments_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Clear all appointments
+  clearAllBtn.addEventListener('click', () => {
+    if (!confirm('Delete ALL appointments? This action cannot be undone.')) return;
+    appointments = [];
+    saveAll();
+    renderSlotsForSelectedDate();
+  });
+
+  // Filters & inputs change
+  slotDateInput.addEventListener('change', renderSlotsForSelectedDate);
+  workStartInput.addEventListener('change', renderSlotsForSelectedDate);
+  workEndInput.addEventListener('change', renderSlotsForSelectedDate);
+  slotLengthInput.addEventListener('change', renderSlotsForSelectedDate);
+
+  qInput.addEventListener('input', renderAppointments);
+  filterDate.addEventListener('change', renderAppointments);
+
+  // Initialize
+  load();
+  // Default slot date to today
+  slotDateInput.value = slotDateInput.value || new Date().toISOString().slice(0,10);
+  renderSlotsForSelectedDate();
+  renderAppointments();
+
+  // Helper: click New Appointment
+  btnAdd.addEventListener('click', () => openModalForNew());
+
+  // When opening modal with a date value, update available times when date changes
+  dateInput.addEventListener('change', () => populateTimeOptions(dateInput.value));
+
+})();
+</script>
+</body>
+</html>
